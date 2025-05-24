@@ -17,17 +17,23 @@ recordButton.onclick = () => {
 recognition.onresult = async (event) => {
   const text = event.results[0][0].transcript;
   userText.textContent = text;
-  status.textContent = "✔️ Mensaje recibido. Analizando...";
+  response.textContent = "💭 Luz está pensando cómo ayudarte...";
+  status.textContent = "✔️ Mensaje recibido. Procesando...";
 
   const tipo = detectarTipoDeProblema(text);
-  const aiResponse = await getLuzResponse(text, tipo);
-  response.textContent = aiResponse;
 
-  guardarConversacion(text, aiResponse, tipo);
+  try {
+    const aiResponse = await getLuzResponse(text, tipo);
+    response.textContent = aiResponse;
+    guardarConversacion(text, aiResponse, tipo);
+  } catch (err) {
+    response.textContent = "❌ Hubo un error al contactar a Luz. Intenta otra vez más tarde.";
+    console.error("Error con la API:", err);
+  }
 };
 
 recognition.onerror = (event) => {
-  status.textContent = "❌ Error: " + event.error;
+  status.textContent = "❌ Error con el reconocimiento de voz: " + event.error;
 };
 
 // Detección de tipo de problema
@@ -41,7 +47,7 @@ function detectarTipoDeProblema(texto) {
   };
 
   for (const [tipo, palabras] of Object.entries(palabrasClave)) {
-    if (palabras.some(palabra => texto.toLowerCase().includes(palabra))) {
+    if (palabras.some(p => texto.toLowerCase().includes(p))) {
       return tipo;
     }
   }
@@ -49,30 +55,34 @@ function detectarTipoDeProblema(texto) {
   return "otro";
 }
 
-// Comunicación con la IA
+// Comunicación con IA
 async function getLuzResponse(userInput, tipoProblema) {
   const prompt = `El usuario habló sobre un tema de tipo "${tipoProblema}". Dijo: "${userInput}". Responde como Luz, una IA compasiva. Dale apoyo emocional y algunas ideas que lo ayuden a sentirse mejor o pensar con claridad. Sé empática, amable y cuidadosa.`;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": "Bearer TU_API_KEY", // ← REEMPLAZA esto con tu API KEY
+      "Authorization": "Bearer TU_API_KEY", // ← Reemplaza con tu API Key real
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: "gpt-4",
       messages: [
-        { role: "system", content: "Eres Luz, una IA que da contención emocional y orientación de forma amable y sabia." },
+        { role: "system", content: "Eres Luz, una IA compasiva que ayuda con problemas personales." },
         { role: "user", content: prompt }
       ]
     })
   });
 
+  if (!res.ok) {
+    throw new Error("Error en la API de OpenAI");
+  }
+
   const data = await res.json();
-  return data.choices[0].message.content;
+  return data.choices[0].message.content.trim();
 }
 
-// Guardar conversación en localStorage
+// Guardar conversación
 function guardarConversacion(pregunta, respuesta, tipo) {
   const historial = JSON.parse(localStorage.getItem("historialLuz")) || [];
   historial.push({ pregunta, respuesta, tipo, fecha: new Date().toLocaleString() });
